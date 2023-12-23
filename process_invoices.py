@@ -6,6 +6,10 @@ if the page has an email address, then it emails the PDF as an attachment
 '''
 
 import sys
+import logging
+# logging.basicConfig()
+# logging.getLogger().setLevel(logging.DEBUG)
+
 try:
    from PyPDF2 import PdfReader, PdfWriter
 except:
@@ -17,18 +21,21 @@ except:
    sys.exit('failed to load yagmail; try pip3 install yagmail to resolve')
    # print("failed to load yagmail", file=sys.stderr )
 
-# rm oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json"
+# oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json"
+# test SMTP connectiopn
 try:
-   yag = yagmail.SMTP("roi.co.4444@gmail.com", oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json")
+   with yagmail.SMTP("roi.co.4444@gmail.com", 
+                     oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json") as yag:
+      yag.close()
+   # yag = yagmail.SMTP("roi.co.4444@gmail.com", oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json")
 except:
    sys.exit('failed to load email credentials file: {oauth2_file}')
+# yag.set_logging(yagmail.logging.DEBUG)
+# yag.setLog(log_level = logging.DEBUG)
 
-import tkinter as tk
-from tkinter import filedialog
-
-TK_SILENCE_DEPRECATION=1
 
 def parse_pdf(filename):
+   email_list = list() #contains tuples of (email, attachment_filename)
    reader = PdfReader(filename) 
 
    for pageno in range(len(reader.pages)):
@@ -65,6 +72,7 @@ def parse_pdf(filename):
       if customer_name_str is None or invoice_num is None:
          print(f'Error on {pageno =}: {customer_name_str = }, {invoice_num = }')
       else:
+         # write single page PDF
          writer = PdfWriter() 
          writer.add_page(page)
          customer_name_for_filename = customer_name_str.replace(" ","_")
@@ -72,18 +80,35 @@ def parse_pdf(filename):
          out_filename = f'{customer_name_str}_invoice_{invoice_num}.pdf'
          out_file = open(out_filename,'wb') 
          writer.write(out_file) 
-         out_file.close() 
+         out_file.close()
 
          if email_str is not None:
-            receiver = "tom@manningetal.com"
-            yag.send(to=receiver,
-               subject="Plowing invoice attached",
-               contents="Thank You-\nCharlie",
-               attachments=out_filename,
-            )
+            customer_tuple = (email_str, out_filename)
+            email_list.append(customer_tuple)
+         else:
+            print(f'No email addr for {pageno =}; {out_filename = }')
+               
+   return email_list
 
+def send_invoices(email_list):
+   import time
+   i = 0
+   with yagmail.SMTP("roi.co.4444@gmail.com", 
+                     oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json") as yag:
+      for customer in email_list:
+         # print(f'{customer[0]= } {customer[1]= }')
+         receivers = ["tmanning@bayberryledge.us", "tom@manningetal.com", "treasurer@sargenthouse.org"]
+         yag.send(to=receivers[i], subject="Plowing invoice attached", contents="Thank You-\nCharlie",
+                  attachments=customer[1])
+         print(f'sent: {customer[0]}')
+         i += 1
+         time.sleep(2)
+         
 
 def pick_file():
+   import tkinter as tk
+   from tkinter import filedialog
+
    root = tk.Tk()
    root.withdraw()  # Hide the main window
    file_path = filedialog.askopenfilename(title="Select a File")
@@ -103,5 +128,6 @@ if __name__ == "__main__":
    pdf_filename = pick_file()
    if pdf_filename is None:
       sys.exit(1)
-   up_pdf_filename = f'../{pdf_filename}'
-   parse_pdf(up_pdf_filename)
+   pdf_filename = f'../{pdf_filename}'
+   email_list = parse_pdf(pdf_filename)
+   send_invoices(email_list)
