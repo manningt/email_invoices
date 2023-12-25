@@ -6,6 +6,8 @@ if the page has an email address, then it emails the PDF as an attachment
 '''
 
 import sys
+from enum import IntEnum
+import array as arr
 import logging
 # logging.basicConfig()
 # logging.getLogger().setLevel(logging.DEBUG)
@@ -35,14 +37,26 @@ except:
 
 
 def parse_pdf(filename):
-   email_list = list() #contains tuples of (email, attachment_filename)
-   reader = PdfReader(filename) 
+   email_list = list() #contains tuples of (email, attachment_filename); used as return data
 
+   make_single_page_pdfs = False  #normally true, set to false to do PDF parsing without generating PDFs
+
+   class FieldType(IntEnum):
+      account_num = 1
+      invoice_num = 2
+      email = 3
+      name = 4
+   missing_field_count = arr.array('i',[0,0,0,0])
+   missing_field_list = ([],[],[]) #list of customer names missing a field
+
+   reader = PdfReader(filename)
    for pageno in range(len(reader.pages)):
       page = reader.pages[pageno] 
       text = page.extract_text() 
       #print(text + '\n') 
 
+      email_str = None
+      customer_name_str = None
       lines = text.split("\n")
       for lineno, line in enumerate(lines):
          if line.endswith("Invoice #"):
@@ -69,8 +83,14 @@ def parse_pdf(filename):
          print(f'\t{invoice_num = }')
          print(f'\t{email_str = }')
 
-      if customer_name_str is None or invoice_num is None:
-         print(f'Error on {pageno =}: {customer_name_str = }, {invoice_num = }')
+      if customer_name_str is None:
+         print(f'Missing customer_name {pageno =}: {account_num = }, {invoice_num = }')
+         missing_field_count[FieldType.name] += 1
+      elif invoice_num is None:
+         missing_field_count[FieldType.invoice_num] += 1
+         missing_field_list[FieldType.invoice_num].append(customer_name_str)
+      elif make_single_page_pdfs is False:
+         continue
       else:
          # write single page PDF
          writer = PdfWriter() 
@@ -82,13 +102,37 @@ def parse_pdf(filename):
          writer.write(out_file) 
          out_file.close()
 
-         if email_str is not None:
-            customer_tuple = (email_str, out_filename)
-            email_list.append(customer_tuple)
-         else:
-            print(f'No email addr for {pageno =}; {out_filename = }')
-               
+      if email_str is not None:
+         customer_tuple = (email_str, out_filename)
+         email_list.append(customer_tuple)
+      else:
+         missing_field_count[FieldType.email] += 1
+         missing_field_list[FieldType.email].append(customer_name_str)
+
+      if account_num is None:
+         missing_field_count[FieldType.account_num] += 1
+         missing_field_list[FieldType.account_num].append(customer_name_str)
+
+   missing_count = 0
+   for i in missing_field_count:
+      missing_count = missing_count + i
+   print(f'Invoice Count={len(reader.pages)}; ', end = '')
+   if missing_count == 0:
+       print(f'No missing fields')
+   else:
+      print(f'')
+
+   if missing_field_count[FieldType.invoice_num] > 0:
+      print(f'{missing_field_count[FieldType.invoice_num]} missing invoice_number.  Customers are {missing_field_list[FieldType.invoice_num]}')
+
+   if missing_field_count[FieldType.account_num] > 0:
+      print(f'{missing_field_count[FieldType.account_num]} missing account_num.  Customers are {missing_field_list[FieldType.account_num]}')
+
+   if missing_field_count[FieldType.email] > 0:
+      print(f'{missing_field_count[FieldType.email]} missing email addr.  Customers are {missing_field_list[FieldType.email]}')
+
    return email_list
+
 
 def send_invoices(email_list):
    import time
@@ -124,10 +168,11 @@ def pick_file():
       print("No file selected.")
       return None
 
+
 if __name__ == "__main__":
    pdf_filename = pick_file()
    if pdf_filename is None:
       sys.exit(1)
    pdf_filename = f'../{pdf_filename}'
    email_list = parse_pdf(pdf_filename)
-   send_invoices(email_list)
+   # send_invoices(email_list)
