@@ -12,6 +12,10 @@ import logging
 # logging.basicConfig()
 # logging.getLogger().setLevel(logging.DEBUG)
 
+import argparse
+import tkinter as tk
+from tkinter import filedialog
+
 try:
    from PyPDF2 import PdfReader, PdfWriter
 except:
@@ -34,12 +38,10 @@ except:
    sys.exit('failed to load email credentials file: {oauth2_file}')
 # yag.set_logging(yagmail.logging.DEBUG)
 # yag.setLog(log_level = logging.DEBUG)
+   
 
-
-def parse_pdf(filename):
+def parse_pdf(filename, parse_only = False):
    email_list = list() #contains tuples of (email, attachment_filename); used as return data
-
-   make_single_page_pdfs = False  #normally true, set to false to do PDF parsing without generating PDFs
 
    class FieldType(IntEnum):
       account_num = 1
@@ -89,7 +91,7 @@ def parse_pdf(filename):
       elif invoice_num is None:
          missing_field_count[FieldType.invoice_num] += 1
          missing_field_list[FieldType.invoice_num].append(customer_name_str)
-      elif make_single_page_pdfs is False:
+      elif parse_only:
          continue
       else:
          # write single page PDF
@@ -134,7 +136,7 @@ def parse_pdf(filename):
    return email_list
 
 
-def send_invoices(email_list):
+def email_invoices(email_list, oauth_filepath):
    import time
    i = 0
    with yagmail.SMTP("roi.co.4444@gmail.com", 
@@ -150,9 +152,6 @@ def send_invoices(email_list):
          
 
 def pick_file():
-   import tkinter as tk
-   from tkinter import filedialog
-
    root = tk.Tk()
    root.withdraw()  # Hide the main window
    file_path = filedialog.askopenfilename(title="Select a File")
@@ -170,9 +169,27 @@ def pick_file():
 
 
 if __name__ == "__main__":
-   pdf_filename = pick_file()
-   if pdf_filename is None:
-      sys.exit(1)
-   pdf_filename = f'../{pdf_filename}'
-   email_list = parse_pdf(pdf_filename)
-   # send_invoices(email_list)
+   default_oauth_path = "../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json"
+   argParser = argparse.ArgumentParser()
+   argParser.add_argument("input", type=str, help="input PDF filename with path")
+   argParser.add_argument("-a", "--oauth_path", help="path to oauth2 file", nargs='?',
+               const=default_oauth_path, default=default_oauth_path, type=str)
+   # store_false will default to True when the command-line argument is not present
+   argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
+   argParser.add_argument("-d", "--dont_email", action='store_true', help="if false, dont send emails")
+
+   args = argParser.parse_args()
+   # print(f'\n\t{args.input= } {args.oauth_path= }\n\t{args.dont_email= } {args.parse_only= }')
+ 
+   if args.input is None:
+      pdf_filename = pick_file()
+      if pdf_filename is None:
+         sys.exit(1)
+      pdf_filename = f'../{pdf_filename}'
+   else:
+      pdf_filename = args.input
+
+   email_list = parse_pdf(pdf_filename, args.parse_only)
+
+   if args.dont_email is False and args.parse_only is False:
+      email_invoices(email_list, args.oauth_path)
