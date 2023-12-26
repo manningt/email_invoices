@@ -6,6 +6,7 @@ if the page has an email address, then it emails the PDF as an attachment
 '''
 
 import sys
+import os
 from enum import IntEnum
 import array as arr
 import logging
@@ -15,6 +16,7 @@ import logging
 import argparse
 import tkinter as tk
 from tkinter import filedialog
+import json
 
 try:
    from PyPDF2 import PdfReader, PdfWriter
@@ -59,6 +61,8 @@ def parse_pdf(filename, parse_only = False):
 
       email_str = None
       customer_name_str = None
+      out_filename = None
+
       lines = text.split("\n")
       for lineno, line in enumerate(lines):
          if line.endswith("Invoice #"):
@@ -92,7 +96,7 @@ def parse_pdf(filename, parse_only = False):
          missing_field_count[FieldType.invoice_num] += 1
          missing_field_list[FieldType.invoice_num].append(customer_name_str)
       elif parse_only:
-         continue
+         pass
       else:
          # write single page PDF
          writer = PdfWriter() 
@@ -139,8 +143,15 @@ def parse_pdf(filename, parse_only = False):
 def email_invoices(email_list, oauth_filepath):
    import time
    i = 0
-   with yagmail.SMTP("roi.co.4444@gmail.com", 
-                     oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json") as yag:
+   try:
+      with open(oauth_filepath, 'r') as oauth_file:
+         oauth_data = json.load(oauth_file)
+         # print(oauth_data['email_address'])
+   except:
+      print(f'Failed to parse {oauth_filepath}')
+      return 0
+   
+   with yagmail.SMTP(oauth_data['email_address'], oauth2_file=oauth_filepath) as yag:
       for customer in email_list:
          # print(f'{customer[0]= } {customer[1]= }')
          receivers = ["tmanning@bayberryledge.us", "tom@manningetal.com", "treasurer@sargenthouse.org"]
@@ -149,6 +160,7 @@ def email_invoices(email_list, oauth_filepath):
          print(f'sent: {customer[0]}')
          i += 1
          time.sleep(2)
+   return i
          
 
 def pick_file():
@@ -169,7 +181,7 @@ def pick_file():
 
 
 if __name__ == "__main__":
-   default_oauth_path = "../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json"
+   default_oauth_path = "../link_to_oauth2.json"
    argParser = argparse.ArgumentParser()
    argParser.add_argument("input", type=str, help="input PDF filename with path")
    argParser.add_argument("-a", "--oauth_path", help="path to oauth2 file", nargs='?',
@@ -180,16 +192,27 @@ if __name__ == "__main__":
 
    args = argParser.parse_args()
    # print(f'\n\t{args.input= } {args.oauth_path= }\n\t{args.dont_email= } {args.parse_only= }')
- 
+
    if args.input is None:
       pdf_filename = pick_file()
       if pdf_filename is None:
-         sys.exit(1)
+         sys.exit("No PDF files selected to parse.")
       pdf_filename = f'../{pdf_filename}'
    else:
       pdf_filename = args.input
 
    email_list = parse_pdf(pdf_filename, args.parse_only)
+   # print(f'{email_list=}')
+   if len(email_list) < 1:
+      print("no email addresses in the PDF file.")
+   elif args.dont_email is False and args.parse_only is False:
+      if not os.path.isfile(args.oauth_path):
+         oauth_filename = pick_file()
+         if oauth_filename is None:
+            sys.exit("No oauth2 file selected to be able to email.")
+         oauth_filepath = f'../{oauth_filename}'
+      else:
+         oauth_filepath = args.oauth_path
 
-   if args.dont_email is False and args.parse_only is False:
-      email_invoices(email_list, args.oauth_path)
+      emails_sent= email_invoices(email_list, oauth_filepath)
+      print(f'Sent {emails_sent} emails')
