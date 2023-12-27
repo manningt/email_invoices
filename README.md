@@ -6,4 +6,18 @@ It extracts fields from the invoices: customer name, account number, invoice num
 
 For each page, it writes a single page invoice with a filename format: customer_name_invoice_number.pdf
 
-If the page has an email address, then it emails the PDF as an attachment
+If the page has an email address, then it emails the PDF as an attachment.
+
+The program requires these modules to be installed:
+* PyPDF2: allows reading PDFs per page, parsing the pages to get text, and write PDFs
+* yagmail: yet another gmail client.  Allows sending from a gmail account using SMTP.
+
+To install, do the following:
+```
+git clone https://github.com/manningt/email_invoices
+cd email_invoices
+python3 -m venv env
+source env/bin/activate
+pip install PyPDF2
+pip install yagmail
+```
