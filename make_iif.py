@@ -57,7 +57,17 @@ def main(input_file_name):
          sys.exit(f'{amt_key} column is not in {input_file_name}.csv')
 
       for row in csv_reader:
-         output_file.write(template.format(payment_date= formatted_date, customer_name = row[cust_key], amount = row[amt_key]))
+         try:
+            amt_float = float(row[amt_key])
+         except:
+            amt_float = -1
+
+         if (amt_float) < 0:
+            print(f'"{row[cust_key]}" has a invalid payment of {row[amt_key]}')
+         elif (amt_float) == 0:
+            print(f'skipping "{row[cust_key]}" because payment is {row[amt_key]}')
+         else:
+            output_file.write(template.format(payment_date= formatted_date, customer_name = row[cust_key], amount = row[amt_key]))
 
 
 if __name__ == '__main__':
