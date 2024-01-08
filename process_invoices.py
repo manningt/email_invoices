@@ -50,6 +50,10 @@ def parse_pdf(filename, parse_only = False):
       invoice_num = 2
       email = 3
       name = 4
+      terms = 5
+
+   terms_dont_email_str = "EoS"
+
    missing_field_count = arr.array('i',[0,0,0,0])
    missing_field_list = ([],[],[]) #list of customer names missing a field
 
@@ -57,10 +61,11 @@ def parse_pdf(filename, parse_only = False):
    for pageno in range(len(reader.pages)):
       page = reader.pages[pageno] 
       text = page.extract_text() 
-      #print(text + '\n') 
+      # print(text + '\n') 
 
       email_str = None
       customer_name_str = None
+      terms_str = None
       out_filename = None
 
       lines = text.split("\n")
@@ -79,15 +84,23 @@ def parse_pdf(filename, parse_only = False):
             email_str = lines[lineno+1]
          if line.endswith("Bill To"):
             customer_name_str = lines[lineno+1]
+         if line.endswith("Terms"):
+            terms_str = lines[lineno+1].partition('Account')[0] 
+            # The line after Terms has Account # in it, e.g. Net 30Account #
+            # The partition operator returns a tuple, which we only want the prefix, which is the zero of the tuple.
+            # prefix, match, suffix = terms_str.partition('Account')
 
       print_status_per_page = False
+      # print_status_per_page = True
       if print_status_per_page:
-         print('\nPage: {pageno}')
+         print(f'\nPage: {pageno}')
          # account number is currently not used.  In the future, it could be used to look up more info in a customer database.
          # print(f'\t{account_num = }')
          print(f'\t{customer_name_str = }')
          print(f'\t{invoice_num = }')
          print(f'\t{email_str = }')
+         print(f'\t{account_num = }')
+         print(f'\t{terms_str = }')
 
       if customer_name_str is None:
          print(f'Missing customer_name {pageno =}: {account_num = }, {invoice_num = }')
@@ -109,8 +122,11 @@ def parse_pdf(filename, parse_only = False):
          out_file.close()
 
       if email_str is not None:
-         customer_tuple = (email_str, out_filename)
-         email_list.append(customer_tuple)
+         if terms_dont_email_str in terms_str:
+            print(f'Not emailing "{customer_name_str}" because {terms_str=} contains {terms_dont_email_str}')
+         else:
+            customer_tuple = (email_str, out_filename)
+            email_list.append(customer_tuple)
       else:
          missing_field_count[FieldType.email] += 1
          missing_field_list[FieldType.email].append(customer_name_str)
