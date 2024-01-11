@@ -27,17 +27,14 @@ try:
    import yagmail
 except:
    sys.exit('failed to load yagmail; try pip3 install yagmail to resolve')
-   # print("failed to load yagmail", file=sys.stderr )
 
-# oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json"
-# test SMTP connectiopn
-try:
-   with yagmail.SMTP("roi.co.4444@gmail.com", 
-                     oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json") as yag:
-      yag.close()
-   # yag = yagmail.SMTP("roi.co.4444@gmail.com", oauth2_file="../client_secret_737781932207-sh8h40p4k1h9d01sabihs6kts9hk02no.apps.googleusercontent.com.json")
-except:
-   sys.exit('failed to load email credentials file: {oauth2_file}')
+test_connection= False
+if test_connection:
+   try:
+      with yagmail.SMTP("test", oauth2_file="../link_to_oauth2.json") as yag:
+         yag.close()
+   except:
+      sys.exit('failed to load email credentials file: {oauth2_file}')
 # yag.set_logging(yagmail.logging.DEBUG)
 # yag.setLog(log_level = logging.DEBUG)
    
@@ -156,24 +153,25 @@ def parse_pdf(filename, parse_only = False):
    return email_list
 
 
-def email_invoices(email_list, oauth_filepath):
+def email_invoices(email_list, auth_filepath):
    import time
    i = 0
    try:
-      with open(oauth_filepath, 'r') as oauth_file:
-         oauth_data = json.load(oauth_file)
-         # print(oauth_data['email_address'])
+      with open(auth_filepath, 'r') as auth_file:
+         auth_data = json.load(auth_file)
+         # print(f'{auth_data["email_address"]= } {auth_data["app_password"]= }')
    except:
-      print(f'Failed to parse {oauth_filepath}')
+      print(f'Failed to parse {auth_filepath}')
       return 0
-   
-   with yagmail.SMTP(oauth_data['email_address'], oauth2_file=oauth_filepath) as yag:
+
+   #email_list format: [(email1, attachment1), (email2, attachment2), etc]
+   print() #to make a blank line before printing out statistics
+
+   with yagmail.SMTP(auth_data["email_address"], auth_data["app_password"]) as yag:
       for customer in email_list:
-         # print(f'{customer[0]= } {customer[1]= }')
-         receivers = ["tmanning@bayberryledge.us", "tom@manningetal.com", "treasurer@sargenthouse.org"]
-         yag.send(to=receivers[i], subject="Plowing invoice attached", contents="Thank You-\nCharlie",
+         yag.send(to=customer[0], subject="Plowing invoice attached", contents="Thank You-\nCharlie",
                   attachments=customer[1])
-         print(f'sent: {customer[0]}')
+         print(f'sent: {customer[0]}  attachment: {customer[1]}')
          i += 1
          time.sleep(2)
    return i
@@ -197,17 +195,17 @@ def pick_file():
 
 
 if __name__ == "__main__":
-   default_oauth_path = "../link_to_oauth2.json"
+   default_auth_path = "email_credentials.json"
    argParser = argparse.ArgumentParser()
    argParser.add_argument("input", type=str, help="input PDF filename with path")
-   argParser.add_argument("-a", "--oauth_path", help="path to oauth2 file", nargs='?',
-               const=default_oauth_path, default=default_oauth_path, type=str)
+   argParser.add_argument("-c", "--auth_path", help="path to credentails file", nargs='?',
+               const=default_auth_path, default=default_auth_path, type=str)
    # store_false will default to True when the command-line argument is not present
    argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
    argParser.add_argument("-d", "--dont_email", action='store_true', help="if false, dont send emails")
 
    args = argParser.parse_args()
-   # print(f'\n\t{args.input= } {args.oauth_path= }\n\t{args.dont_email= } {args.parse_only= }')
+   # print(f'\n\t{args.input= } {args.auth_path= }\n\t{args.dont_email= } {args.parse_only= }')
 
    if args.input is None:
       pdf_filename = pick_file()
@@ -219,16 +217,17 @@ if __name__ == "__main__":
 
    email_list = parse_pdf(pdf_filename, args.parse_only)
    # print(f'{email_list=}')
+
    if len(email_list) < 1:
       print("no email addresses in the PDF file.")
    elif args.dont_email is False and args.parse_only is False:
-      if not os.path.isfile(args.oauth_path):
-         oauth_filename = pick_file()
-         if oauth_filename is None:
-            sys.exit("No oauth2 file selected to be able to email.")
-         oauth_filepath = f'../{oauth_filename}'
+      if not os.path.isfile(args.auth_path):
+         auth_filename = pick_file()
+         if auth_filename is None:
+            sys.exit("No credentials file selected; unable to email.")
+         auth_filepath = f'../{auth_filename}'
       else:
-         oauth_filepath = args.oauth_path
+         auth_filepath = args.auth_path
 
-      emails_sent= email_invoices(email_list, oauth_filepath)
+      emails_sent= email_invoices(email_list, auth_filepath)
       print(f'Sent {emails_sent} emails')

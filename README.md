@@ -10,14 +10,27 @@ If the page has an email address, then it emails the PDF as an attachment.
 
 To cover special cases, it won't email customers that have EoS (End of Season) in their Terms.
 
+An [App Password](https://www.zdnet.com/article/gmail-app-passwords-what-they-are-how-to-create-one-and-why-to-use-them/) is used to access Google's email.
+
+After creating the app password, store in in a json file.  Here is the format as an example:
+
+```
+{
+    "email_address": "address@gmail.com",
+    "app_password": "password_obtained_from_google"
+}
+```
+
+The program defaults to reading "email_credentials.json".
+
 An example invocation:
 ```
-./email_invoices/process_invoices.py invoices.pdf -a link_to_oauth2.json
+./email_invoices/process_invoices.py invoices.pdf
 ```
 
 The program requires these modules to be installed:
 * PyPDF2: allows reading PDFs per page, parsing the pages to get text, and write PDFs
-* yagmail: yet another gmail client.  Allows sending from a gmail account using SMTP.
+* [yagmail](https://github.com/kootenpv/yagmail/blob/master/README.md): yet another gmail client.  Allows sending from a gmail account using SMTP.
 
 To install, do the following:
 ```
