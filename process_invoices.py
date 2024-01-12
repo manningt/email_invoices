@@ -121,6 +121,11 @@ def parse_pdf(filename, parse_only = False):
       if email_str is not None:
          if terms_dont_email_str in terms_str:
             print(f'Not emailing "{customer_name_str}" because {terms_str=} contains {terms_dont_email_str}')
+         elif "@" not in email_str:
+            print(f'Not emailing "{customer_name_str}" because missing or invalid email address')
+         # the folllowing was to handle a bug, can be deleted in the long run.
+         # elif account_num == 130:
+         #    print(f'Not emailing "{customer_name_str}" because account number is excluded')
          else:
             customer_tuple = (email_str, out_filename)
             email_list.append(customer_tuple)
