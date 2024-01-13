@@ -113,7 +113,7 @@ def parse_pdf(filename, parse_only = False):
          writer.add_page(page)
          customer_name_for_filename = customer_name_str.replace(" ","_")
          customer_name_for_filename = customer_name_for_filename.replace("&","")
-         out_filename = f'{customer_name_str}_invoice_{invoice_num}.pdf'
+         out_filename = f'{customer_name_for_filename}_invoice_{invoice_num}.pdf'
          out_file = open(out_filename,'wb') 
          writer.write(out_file) 
          out_file.close()
@@ -207,7 +207,7 @@ if __name__ == "__main__":
                const=default_auth_path, default=default_auth_path, type=str)
    # store_false will default to True when the command-line argument is not present
    argParser.add_argument("-p", "--parse_only", action='store_true', help="if false, dont output PDFs or email - parse only")
-   argParser.add_argument("-d", "--dont_email", action='store_true', help="if false, dont send emails")
+   argParser.add_argument("-d", "--dont_email", action='store_true', help="if true, dont send emails")
 
    args = argParser.parse_args()
    # print(f'\n\t{args.input= } {args.auth_path= }\n\t{args.dont_email= } {args.parse_only= }')
