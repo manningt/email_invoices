@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "PyPDF2",
+#   "yagmail",
+# ]
+# ///
 '''
 This program parses a PDF with one or more pages of invoices.  
 For each page, it writes a single page invoice with a filename format: customer_name_invoice_number.pdf
@@ -51,8 +58,8 @@ def parse_pdf(filename, parse_only = False):
 
    terms_dont_email_str = "EoS"
 
-   missing_field_count = arr.array('i',[0,0,0,0])
-   missing_field_list = ([],[],[]) #list of customer names missing a field
+   missing_field_count = arr.array('i',[0,0,0,0,0])
+   missing_field_list = ([],[],[],[],[]) #list of customer names missing a field
 
    reader = PdfReader(filename)
    for pageno in range(len(reader.pages)):
@@ -63,36 +70,62 @@ def parse_pdf(filename, parse_only = False):
       email_str = None
       customer_name_str = None
       terms_str = None
-      out_filename = None
+      invoice_num = None
+      account_num = None
 
       lines = text.split("\n")
-      for lineno, line in enumerate(lines):
-         if line.endswith("Invoice #"):
-            try:
-               invoice_num = int(lines[lineno+1])                        
-            except:
-               invoice_num = None
-         if line.endswith("Account #"):
-            try:
-               account_num = int(lines[lineno+1])
-            except:
-               account_num = None
-         if line.endswith("Customer E-mail"):
-            email_str = lines[lineno+1]
-         if line.endswith("Bill To"):
-            customer_name_str = lines[lineno+1]
-         if line.endswith("Terms"):
-            terms_str = lines[lineno+1].partition('Account')[0] 
-            # The line after Terms has Account # in it, e.g. Net 30Account #
-            # The partition operator returns a tuple, which we only want the prefix, which is the zero of the tuple.
-            # prefix, match, suffix = terms_str.partition('Account')
+      quickbooks_invoice = False
+      if quickbooks_invoice:
+         for lineno, line in enumerate(lines):
+            if line.endswith("Invoice #"):
+               try:
+                  invoice_num = int(lines[lineno+1])                        
+               except:
+                  invoice_num = None
+            if line.endswith("Acct"): #with quickbooks invoices, this used to be ("Account #")
+               try:
+                  account_num = int(lines[lineno+1])
+               except:
+                  account_num = None
+            if line.endswith("Customer E-mail"):
+               email_str = lines[lineno+1]
+            if line.endswith("Bill To"):
+               customer_name_str = lines[lineno+1]
+            if line.endswith("Terms"):
+               terms_str = lines[lineno+1].partition('Account')[0] 
+               # The line after Terms has Account # in it, e.g. Net 30Account #
+               # The partition operator returns a tuple, which we only want the prefix, which is the zero of the tuple.
+               # prefix, match, suffix = terms_str.partition('Account')
+      else:
+         for lineno, line in enumerate(lines):
+            if line.endswith("Bill To:"):
+               customer_name_str = lines[lineno+1]
+               # customers without addresses have "Terms" on the same line as the customer name
+               if customer_name_str.endswith("Terms"):
+                  customer_name_str = customer_name_str[:-5]
+            if line.endswith("Terms"):
+               terms_str = lines[lineno+1]
+            if line.endswith("Invoice"):
+               line_to_parse = lines[lineno+1]
+               line_parts = line_to_parse.split(" ")
+               # print(f"line after split: {line_parts}, {len(line_parts)=}")
+               if len(line_parts) == 2:
+                  invoice_num = line_parts[1]
+                  account_num = line_parts[0][0:3]
+               elif len(line_parts) == 3:
+                  invoice_num = line_parts[2]
+                  account_num = line_parts[1][0:3]
+                  email_str = line_parts[0]
+               else:
+                  print(f'Unexpected line format: {line_to_parse} on {pageno=}')
+               #change period to dash in invoice number for filename
+               invoice_num = invoice_num.replace(".","-")
+
 
       print_status_per_page = False
       # print_status_per_page = True
       if print_status_per_page:
          print(f'\nPage: {pageno}')
-         # account number is currently not used.  In the future, it could be used to look up more info in a customer database.
-         # print(f'\t{account_num = }')
          print(f'\t{customer_name_str = }')
          print(f'\t{invoice_num = }')
          print(f'\t{email_str = }')
@@ -100,7 +133,7 @@ def parse_pdf(filename, parse_only = False):
          print(f'\t{terms_str = }')
 
       if customer_name_str is None:
-         print(f'Missing customer_name {pageno =}: {account_num = }, {invoice_num = }')
+         print(f'Missing customer_name {pageno=}: {account_num=}, {invoice_num=}')
          missing_field_count[FieldType.name] += 1
       elif invoice_num is None:
          missing_field_count[FieldType.invoice_num] += 1
@@ -211,6 +244,7 @@ if __name__ == "__main__":
 
    args = argParser.parse_args()
    # print(f'\n\t{args.input= } {args.auth_path= }\n\t{args.dont_email= } {args.parse_only= }')
+   # sys.exit(0)
 
    if args.input is None:
       pdf_filename = pick_file()
@@ -221,7 +255,7 @@ if __name__ == "__main__":
       pdf_filename = args.input
 
    email_list = parse_pdf(pdf_filename, args.parse_only)
-   # print(f'{email_list=}')
+   print(f'{email_list=}')
 
    if len(email_list) < 1:
       print("no email addresses in the PDF file.")
